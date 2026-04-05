@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0f1a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>KLOK — Workforce Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@300;400;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #0a0f1a; color: #f8fafc; font-family: 'Urbanist', system-ui, sans-serif; overflow: hidden; }
+  #app { height: 100vh; overflow: hidden; position: relative; }
+  button { font-family: 'Urbanist', system-ui, sans-serif; cursor: pointer; border: none; background: none; }
+  input, select, textarea { font-family: 'Urbanist', system-ui, sans-serif; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5); }
+
+  /* ── Screens ── */
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: #0a0f1a; transition: opacity 0.25s, transform 0.25s; }
+  .screen.hidden { opacity: 0; pointer-events: none; transform: translateY(12px); }
+
+  /* ── Splash ── */
+  #splash { align-items: center; justify-content: center; gap: 16px; }
+  .splash-logo { animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+  .splash-title { font-size: 48px; font-weight: 900; letter-spacing: -3px; color: #f8fafc; }
+  .splash-bar { height: 3px; width: 60px; background: #f59e0b; border-radius: 2px; }
+  .splash-sub { font-size: 10px; letter-spacing: 6px; color: #475569; }
+  .spinner { width: 28px; height: 28px; border: 2px solid #1e293b; border-top-color: #f59e0b; border-radius: 50%; animation: spin 0.8s linear infinite; margin-top: 32px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Login ── */
+  #login { align-items: center; justify-content: center; padding: 32px 24px; }
+  .login-logo-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 44px; }
+  .login-title { font-size: 36px; font-weight: 900; letter-spacing: -2px; }
+  .login-bar { height: 2px; width: 36px; background: #f59e0b; border-radius: 1px; }
+  .pin-label { font-size: 11px; letter-spacing: 3px; color: #64748b; margin-bottom: 18px; }
+  .pin-dots { display: flex; gap: 14px; margin-bottom: 10px; }
+  .pin-dot { width: 15px; height: 15px; border-radius: 50%; background: #1e293b; border: 2px solid #334155; transition: all 0.15s; }
+  .pin-dot.filled { background: #f59e0b; border-color: #f59e0b; }
+  .pin-error { color: #ef4444; font-size: 12px; min-height: 18px; text-align: center; }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+  .pin-shake { animation: shake 0.35s ease; }
+  .pin-grid { display: grid; grid-template-columns: repeat(3, 72px); gap: 10px; justify-content: center; margin-top: 16px; }
+  .pin-btn { width: 72px; height: 56px; border-radius: 14px; border: 1px solid #1e293b; background: #111827; color: #f8fafc; font-size: 22px; font-weight: 600; transition: background 0.1s; }
+  .pin-btn:active { background: #1e293b; }
+  .worker-entry-btn { margin-top: 36px; border: 1px solid #1e293b; color: #64748b; padding: 12px 28px; border-radius: 12px; font-size: 13px; }
+
+  /* ── Worker App ── */
+  #worker { display: flex; flex-direction: column; }
+  .worker-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1e293b; flex-shrink: 0; background: #0a0f1a; }
+  .worker-body { flex: 1; overflow-y: auto; padding: 20px 18px; }
+  .back-btn { width: 36px; height: 36px; border-radius: 10px; border: 1px solid #1e293b; color: #94a3b8; font-size: 18px; flex-shrink: 0; }
+  .site-badge { margin-left: auto; font-size: 11px; color: #f59e0b; background: rgba(245,158,11,0.1); padding: 4px 10px; border-radius: 6px; font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step-label { font-size: 11px; letter-spacing: 3px; color: #64748b; margin-bottom: 16px; text-transform: uppercase; }
+  .site-card { width: 100%; position: relative; background: #111827; border: 1px solid #1e293b; border-radius: 14px; padding: 16px 48px 16px 16px; margin-bottom: 10px; text-align: left; transition: border-color 0.15s; }
+  .site-card:active { border-color: #f59e0b; }
+  .site-card-name { font-size: 15px; font-weight: 600; color: #f8fafc; }
+  .site-card-addr { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .site-card-arrow { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #334155; font-size: 20px; }
+  .name-search { background: #111827; border: 1px solid #1e293b; border-radius: 10px; padding: 11px 14px; color: #f8fafc; font-size: 14px; width: 100%; outline: none; margin-bottom: 10px; }
+  .worker-list { max-height: 270px; overflow-y: auto; border-radius: 12px; border: 1px solid #1e293b; background: #0f172a; }
+  .worker-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 14px; border-bottom: 1px solid #111827; background: transparent; text-align: left; transition: background 0.1s; }
+  .worker-item:last-child { border-bottom: none; }
+  .worker-item.selected { background: rgba(245,158,11,0.08); }
+  .worker-avatar { width: 36px; height: 36px; border-radius: 50%; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #64748b; flex-shrink: 0; transition: all 0.15s; }
+  .worker-item.selected .worker-avatar { background: #f59e0b; color: #0a0f1a; }
+  .worker-item-name { font-size: 14px; font-weight: 600; color: #cbd5e1; flex: 1; }
+  .worker-item.selected .worker-item-name { color: #f8fafc; }
+  .worker-item-trade { font-size: 11px; color: #475569; }
+  .worker-check { color: #f59e0b; font-size: 16px; }
+  .action-row { display: flex; gap: 10px; margin-top: 16px; }
+  .toggle-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 10px; border-radius: 12px; border: 1px solid #1e293b; background: #111827; color: #94a3b8; font-size: 14px; font-weight: 600; transition: all 0.15s; }
+  .toggle-btn.active-in { border-color: #10b981; background: rgba(16,185,129,0.1); color: #10b981; }
+  .toggle-btn.active-out { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #ef4444; }
+  .gps-box { background: #111827; border-radius: 16px; padding: 36px 24px; text-align: center; }
+  .gps-icon { font-size: 52px; margin-bottom: 14px; }
+  .gps-status-ok { color: #10b981; font-weight: 700; font-size: 16px; }
+  .gps-status-err { color: #ef4444; font-weight: 700; font-size: 16px; }
+  .gps-sub { color: #64748b; font-size: 12px; margin-top: 6px; }
+  .done-icon { font-size: 64px; margin-bottom: 16px; }
+  .done-title { font-size: 22px; font-weight: 700; }
+  .done-sub { color: #64748b; margin-top: 8px; font-size: 14px; }
+  .summary-box { background: #111827; border-radius: 14px; padding: 20px; margin-top: 28px; }
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1e293b; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-label { color: #64748b; font-size: 13px; }
+  .summary-value { font-size: 13px; font-weight: 600; color: #f8fafc; }
+
+  /* ── Shared Buttons ── */
+  .btn-primary { width: 100%; padding: 14px 20px; border-radius: 12px; background: #f59e0b; color: #0a0f1a; font-size: 15px; font-weight: 700; margin-top: 16px; }
+  .btn-primary:active { background: #d97706; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { width: 100%; padding: 12px 20px; border-radius: 12px; border: 1px solid #f59e0b; color: #f59e0b; font-size: 14px; font-weight: 600; margin-top: 10px; }
+  .btn-ghost { width: 100%; padding: 10px 20px; border-radius: 10px; color: #64748b; font-size: 13px; margin-top: 8px; }
+  .no-items { padding: 32px; text-align: center; color: #475569; font-size: 13px; }
+
+  /* ── Manager Dashboard ── */
+  #manager { flex-direction: row; }
+  .sidebar { width: 224px; background: #0f172a; border-right: 1px solid #1e293b; display: flex; flex-direction: column; flex-shrink: 0; height: 100vh; overflow: hidden; }
+  .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 20px 16px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+  .sidebar-logo-text { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+  .sidebar-logo-bar { height: 2px; width: 26px; background: #f59e0b; border-radius: 1px; margin-top: 3px; }
+  .site-select { width: calc(100% - 24px); margin: 10px 12px 4px; background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 10px; color: #f8fafc; font-size: 12px; outline: none; }
+  .nav-list { flex: 1; overflow-y: auto; padding: 8px 8px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 10px; color: #94a3b8; font-size: 13px; font-weight: 500; text-align: left; margin-bottom: 2px; transition: all 0.12s; }
+  .nav-item:hover { background: rgba(255,255,255,0.04); color: #cbd5e1; }
+  .nav-item.active { background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .nav-badge { background: #ef4444; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; margin-left: auto; }
+  .sidebar-footer { padding: 12px 16px; border-top: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+  .sidebar-user { font-size: 12px; color: #94a3b8; }
+  .logout-btn { border: 1px solid #1e293b; color: #64748b; padding: 4px 12px; border-radius: 8px; font-size: 11px; }
+  .main-pane { flex: 1; overflow-y: auto; padding: 24px 26px; max-width: 940px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; flex-wrap: wrap; gap: 10px; }
+  .pane-title { font-size: 22px; font-weight: 700; }
+  .pane-sub { font-size: 13px; color: #64748b; margin-top: 2px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .stat-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; padding: 18px 16px; cursor: default; }
+  .stat-card.clickable { cursor: pointer; } .stat-card.clickable:hover { border-color: #334155; }
+  .stat-icon { font-size: 22px; }
+  .stat-value { font-size: 28px; font-weight: 800; font-family: 'JetBrains Mono', monospace; margin-top: 4px; }
+  .stat-label { font-size: 11px; color: #64748b; margin-top: 6px; }
+  .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; }
+  .card-title { font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 14px; }
+  .activity-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #111827; }
+  .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .activity-name { font-weight: 600; font-size: 14px; }
+  .activity-action { color: #64748b; font-size: 12px; margin-left: 6px; }
+  .activity-time { color: #64748b; font-size: 12px; font-family: 'JetBrains Mono', monospace; margin-left: auto; }
+  tbl, .data-table { width: 100%; border-collapse: collapse; }
+  .th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase; border-bottom: 1px solid #1e293b; }
+  .td { padding: 10px 12px; font-size: 13px; color: #cbd5e1; border-bottom: 1px solid #111827; }
+  .td:last-child { white-space: nowrap; }
+  .status-badge { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+  .badge-green { background: rgba(16,185,129,0.15); color: #10b981; }
+  .badge-purple { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+  .badge-red { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .badge-amber { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .badge-slate { background: rgba(100,116,139,0.15); color: #64748b; }
+  .date-input { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 12px; color: #f8fafc; font-size: 13px; outline: none; font-family: 'JetBrains Mono', monospace; }
+  .refresh-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #1e293b; background: #111827; color: #f59e0b; font-size: 18px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-input { background: #111827; border: 1px solid #1e293b; border-radius: 10px; padding: 11px 14px; color: #f8fafc; font-size: 14px; width: 100%; outline: none; }
+  .form-input:focus { border-color: #334155; }
+  .full-col { grid-column: 1 / -1; }
+  .btn-sm { padding: 8px 18px; border-radius: 10px; background: #f59e0b; color: #0a0f1a; font-size: 13px; font-weight: 700; }
+  .btn-sm:active { background: #d97706; }
+  .btn-ghost-sm { padding: 6px 14px; border-radius: 8px; border: 1px solid #1e293b; color: #94a3b8; font-size: 12px; }
+  .btn-ghost-sm:active { background: #111827; }
+  .btn-danger-sm { padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.3); color: #ef4444; font-size: 12px; }
+  .msg-ok { padding: 8px 14px; background: rgba(16,185,129,0.1); border-radius: 8px; color: #10b981; font-size: 13px; margin-bottom: 14px; }
+  .msg-err { padding: 8px 14px; background: rgba(239,68,68,0.1); border-radius: 8px; color: #ef4444; font-size: 13px; margin-bottom: 14px; }
+  .qr-wrap { margin-top: 14px; background: #0f172a; border-radius: 12px; padding: 24px; text-align: center; border-top: 1px solid #1e293b; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; padding: 12px 0 8px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar { width: 100%; max-width: 40px; border-radius: 4px; min-height: 4px; }
+  .bar-count { font-size: 11px; color: #94a3b8; font-family: 'JetBrains Mono', monospace; }
+  .bar-day { font-size: 10px; color: #64748b; }
+  .alert-card { border-left: 3px solid #ef4444; }
+
+  /* ── Mobile nav (worker mode) ── */
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .main-pane { padding: 16px 14px; margin-left: 0; }
+    #manager { flex-direction: column; }
+    .mobile-nav { display: flex !important; }
+    .sidebar-mobile-header { display: flex !important; }
+  }
+  .mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: #0f172a; border-top: 1px solid #1e293b; z-index: 100; padding: 8px 0 env(safe-area-inset-bottom, 8px); }
+  .mob-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px; color: #64748b; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+  .mob-nav-item.active { color: #f59e0b; }
+  .mob-nav-icon { font-size: 20px; }
+  .sidebar-mobile-header { display: none; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #1e293b; background: #0f172a; position: sticky; top: 0; z-index: 10; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { animation: fadeUp 0.2s ease; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- SPLASH -->
+  <div id="splash" class="screen">
+    <div class="splash-logo">
+      <svg width="72" height="72" viewBox="0 0 38 38" fill="none"><rect width="38" height="38" rx="10" fill="#f59e0b"/><rect x="9" y="9" width="4.5" height="20" rx="2.25" fill="#0a0f1a"/><path d="M13.5 19 L26 9" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/><path d="M13.5 19 L26 29" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/></svg>
+    </div>
+    <div class="splash-title">KLOK</div>
+    <div class="splash-bar"></div>
+    <div class="splash-sub">WORKFORCE</div>
+    <div class="spinner"></div>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="login" class="screen hidden">
+    <div class="login-logo-wrap">
+      <svg width="56" height="56" viewBox="0 0 38 38" fill="none"><rect width="38" height="38" rx="10" fill="#f59e0b"/><rect x="9" y="9" width="4.5" height="20" rx="2.25" fill="#0a0f1a"/><path d="M13.5 19 L26 9" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/><path d="M13.5 19 L26 29" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/></svg>
+      <div class="login-title">KLOK</div>
+      <div class="login-bar"></div>
+    </div>
+    <div class="pin-label">MANAGER LOGIN</div>
+    <div class="pin-dots" id="pinDots">
+      <div class="pin-dot"></div><div class="pin-dot"></div>
+      <div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+    <div class="pin-grid">
+      <button class="pin-btn" onclick="addPin('1')">1</button>
+      <button class="pin-btn" onclick="addPin('2')">2</button>
+      <button class="pin-btn" onclick="addPin('3')">3</button>
+      <button class="pin-btn" onclick="addPin('4')">4</button>
+      <button class="pin-btn" onclick="addPin('5')">5</button>
+      <button class="pin-btn" onclick="addPin('6')">6</button>
+      <button class="pin-btn" onclick="addPin('7')">7</button>
+      <button class="pin-btn" onclick="addPin('8')">8</button>
+      <button class="pin-btn" onclick="addPin('9')">9</button>
+      <div></div>
+      <button class="pin-btn" onclick="addPin('0')">0</button>
+      <button class="pin-btn" style="font-size:18px" onclick="removePin()">⌫</button>
+    </div>
+    <button class="worker-entry-btn" onclick="showScreen('worker')">👷 Worker Sign In / Out</button>
+  </div>
+
+  <!-- WORKER -->
+  <div id="worker" class="screen hidden">
+    <div class="worker-header">
+      <button class="back-btn" id="workerBackBtn" onclick="workerBack()">←</button>
+      <svg width="28" height="28" viewBox="0 0 38 38" fill="none"><rect width="38" height="38" rx="10" fill="#f59e0b"/><rect x="9" y="9" width="4.5" height="20" rx="2.25" fill="#0a0f1a"/><path d="M13.5 19 L26 9" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/><path d="M13.5 19 L26 29" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/></svg>
+      <span style="font-weight:800;font-size:18px;letter-spacing:-0.5px">KLOK</span>
+      <span class="site-badge" id="workerSiteBadge" style="display:none"></span>
+    </div>
+    <div class="worker-body" id="workerBody"></div>
+  </div>
+
+  <!-- MANAGER -->
+  <div id="manager" class="screen hidden">
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <svg width="34" height="34" viewBox="0 0 38 38" fill="none"><rect width="38" height="38" rx="10" fill="#f59e0b"/><rect x="9" y="9" width="4.5" height="20" rx="2.25" fill="#0a0f1a"/><path d="M13.5 19 L26 9" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/><path d="M13.5 19 L26 29" stroke="#0a0f1a" stroke-width="4.5" stroke-linecap="round"/></svg>
+        <div><div class="sidebar-logo-text">KLOK</div><div class="sidebar-logo-bar"></div></div>
+      </div>
+      <select class="site-select" id="siteSelect" onchange="onSiteChange(this.value)"></select>
+      <div class="nav-list" id="navList"></div>
+      <div class="sidebar-footer">
+        <div class="sidebar-user" id="sidebarUser"></div>
+        <button class="logout-btn" onclick="doLogout()">Logout</button>
+      </div>
+    </div>
+    <div class="main-pane" id="mainPane"></div>
+    <!-- Mobile bottom nav -->
+    <nav class="mobile-nav" id="mobileNav"></nav>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// STORAGE (localStorage wrapper)
+// ═══════════════════════════════════════════
+const DB = {
+  get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+  keys(prefix) { const out = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(prefix)) out.push(k); } return out; }
+};
+
+// ═══════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════
+const genId = () => Math.random().toString(36).slice(2, 10);
+const fmt = {
+  date: d => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+  time: d => new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+  iso: d => new Date(d).toISOString().slice(0, 10),
+  hours: ms => { if (!ms || ms < 0) return '—'; const h = Math.floor(ms/3600000); const m = Math.floor((ms%3600000)/60000); return `${h}h ${m}m`; },
+  today: () => fmt.iso(new Date()),
+  weekStart: () => { const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1); return fmt.iso(d); }
+};
+
+function haversine(lat1,lon1,lat2,lon2) {
+  const R=6371000, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function computeDailyStats(records) {
+  const byName = {};
+  records.forEach(r => {
+    if (!byName[r.name]) byName[r.name] = { ins: [], outs: [] };
+    if (r.action === 'in') byName[r.name].ins.push(r.timestamp);
+    else byName[r.name].outs.push(r.timestamp);
+  });
+  const workers = Object.entries(byName).map(([name, data]) => {
+    const signIn = data.ins[0] || null;
+    const signOut = data.outs[data.outs.length-1] || null;
+    let totalMs = 0, status = 'on-site';
+    if (signIn && signOut) { totalMs = new Date(signOut) - new Date(signIn); status = 'left'; }
+    return { name, signIn, signOut, totalMs, hours: fmt.hours(totalMs), status };
+  });
+  return { workers, onSite: workers.filter(w=>w.status==='on-site').length, signedIn: workers.length, signedOut: workers.filter(w=>w.status==='left').length };
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+let STATE = { manager: null, selectedSiteId: null, activeTab: 'dashboard', dateFilter: fmt.today(), workerStep: 'select-site', selectedSite: null, workerName: '', workerAction: 'in', gpsStatus: 'pending', gpsDistance: null, deepLinkSiteId: null };
+
+function initData() {
+  if (!DB.get('klok:managers')) DB.set('klok:managers', [{ id:'admin', name:'Andrei Vaculea', pin:'1234', role:'admin' }]);
+  if (!DB.get('klok:sites')) DB.set('klok:sites', [{ id:'cp12-cp18', name:'CP12 & CP18 POD Fabrication', address:'Colnbrook, Slough SL3 0EB', lat:51.485133, lng:-0.501897, radius:800, status:'active', created:new Date().toISOString() }]);
+  if (!DB.get('klok:workers')) DB.set('klok:workers', [
+    { id:genId(), name:'John Smith', trade:'Dryliner', siteIds:['cp12-cp18'], active:true },
+    { id:genId(), name:'Marius Popescu', trade:'Dryliner', siteIds:['cp12-cp18'], active:true },
+    { id:genId(), name:'Daniel Ionescu', trade:'Labourer', siteIds:['cp12-cp18'], active:true }
+  ]);
+}
+
+function checkDeepLink() {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get('site');
+    if (s) { STATE.deepLinkSiteId = s; return true; }
+  } catch {}
+  return false;
+}
+
+window.onload = () => {
+  initData();
+  const hasDeepLink = checkDeepLink();
+  setTimeout(() => {
+    if (hasDeepLink) {
+      const sites = DB.get('klok:sites') || [];
+      const site = sites.find(s => s.id === STATE.deepLinkSiteId);
+      if (site) { STATE.selectedSite = site; STATE.workerStep = 'form'; showWorkerSiteBadge(site.name); }
+      showScreen('worker');
+    } else {
+      showScreen('login');
+    }
+  }, 1600);
+};
+
+// ═══════════════════════════════════════════
+// SCREEN MANAGER
+// ═══════════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+  const el = document.getElementById(id);
+  el.classList.remove('hidden');
+  if (id === 'worker') renderWorkerStep();
+  if (id === 'manager') renderManager();
+}
+
+// ═══════════════════════════════════════════
+// PIN LOGIN
+// ═══════════════════════════════════════════
+let pinVal = '';
+function addPin(d) {
+  if (pinVal.length >= 6) return;
+  pinVal += d;
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+  if (pinVal.length === 4) setTimeout(checkPin, 180);
+}
+function removePin() { pinVal = pinVal.slice(0,-1); updatePinDots(); }
+function updatePinDots() {
+  document.querySelectorAll('.pin-dot').forEach((dot, i) => dot.classList.toggle('filled', i < pinVal.length));
+}
+function checkPin() {
+  const managers = DB.get('klok:managers') || [];
+  const found = managers.find(m => m.pin === pinVal);
+  if (found) { STATE.manager = found; pinVal = ''; updatePinDots(); showScreen('manager'); }
+  else {
+    const dots = document.getElementById('pinDots');
+    dots.classList.add('pin-shake');
+    document.getElementById('pinError').textContent = 'Incorrect PIN';
+    setTimeout(() => { dots.classList.remove('pin-shake'); pinVal = ''; updatePinDots(); }, 450);
+  }
+}
+function doLogout() { STATE.manager = null; STATE.activeTab = 'dashboard'; showScreen('login'); }
+
+// ═══════════════════════════════════════════
+// WORKER APP
+// ═══════════════════════════════════════════
+function workerBack() {
+  if (STATE.deepLinkSiteId) return;
+  if (STATE.workerStep === 'select-site') { showScreen('login'); return; }
+  if (STATE.workerStep === 'form') { STATE.workerStep = 'select-site'; STATE.selectedSite = null; hideWorkerSiteBadge(); renderWorkerStep(); return; }
+  if (STATE.workerStep === 'gps') { STATE.workerStep = 'form'; renderWorkerStep(); return; }
+  if (STATE.workerStep === 'done') {
+    if (STATE.deepLinkSiteId) { STATE.workerStep = 'form'; STATE.workerName = ''; STATE.workerAction = 'in'; }
+    else { STATE.workerStep = 'select-site'; STATE.selectedSite = null; hideWorkerSiteBadge(); }
+    renderWorkerStep();
+  }
+}
+function showWorkerSiteBadge(name) { const b = document.getElementById('workerSiteBadge'); b.textContent = '📍 ' + name; b.style.display = ''; }
+function hideWorkerSiteBadge() { document.getElementById('workerSiteBadge').style.display = 'none'; }
+
+function renderWorkerStep() {
+  const body = document.getElementById('workerBody');
+  const backBtn = document.getElementById('workerBackBtn');
+  backBtn.style.display = STATE.deepLinkSiteId && STATE.workerStep !== 'done' ? 'none' : '';
+
+  if (STATE.workerStep === 'select-site') renderWorkerSelectSite(body);
+  else if (STATE.workerStep === 'form') renderWorkerForm(body);
+  else if (STATE.workerStep === 'gps') renderWorkerGPS(body);
+  else if (STATE.workerStep === 'done') renderWorkerDone(body);
+}
+
+function renderWorkerSelectSite(body) {
+  const sites = (DB.get('klok:sites') || []).filter(s => s.status === 'active');
+  body.innerHTML = `<div class="step-label">Select Site</div>` +
+    (sites.length === 0 ? '<div class="no-items">No active sites.</div>' :
+      sites.map(s => `<button class="site-card" onclick="workerSelectSite('${s.id}')">
+        <div class="site-card-name">${s.name}</div>
+        <div class="site-card-addr">${s.address}</div>
+        <div class="site-card-arrow">→</div>
+      </button>`).join(''));
+}
+
+function workerSelectSite(id) {
+  const sites = DB.get('klok:sites') || [];
+  STATE.selectedSite = sites.find(s => s.id === id);
+  STATE.workerStep = 'form';
+  showWorkerSiteBadge(STATE.selectedSite.name);
+  renderWorkerStep();
+}
+
+let workerSearchVal = '';
+function renderWorkerForm(body) {
+  const allWorkers = (DB.get('klok:workers') || []).filter(w => w.active);
+  const siteWorkers = STATE.selectedSite
+    ? allWorkers.filter(w => !w.siteIds || w.siteIds.length === 0 || w.siteIds.includes(STATE.selectedSite.id))
+    : allWorkers;
+  const filtered = workerSearchVal ? siteWorkers.filter(w => w.name.toLowerCase().includes(workerSearchVal.toLowerCase())) : siteWorkers;
+
+  const listHTML = filtered.length === 0
+    ? '<div class="no-items">No workers found. Ask your manager to add you.</div>'
+    : filtered.map(w => {
+        const initials = w.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+        const sel = STATE.workerName === w.name;
+        return `<button class="worker-item ${sel?'selected':''}" onclick="workerSelectName('${w.name.replace(/'/g,"\\'")}')">
+          <div class="worker-avatar">${initials}</div>
+          <div style="flex:1;text-align:left"><div class="worker-item-name">${w.name}</div>${w.trade?`<div class="worker-item-trade">${w.trade}</div>`:''}</div>
+          ${sel?'<span class="worker-check">✓</span>':''}
+        </button>`;
+      }).join('');
+
+  const actionHTML = STATE.workerName ? `
+    <div class="action-row fade-up">
+      <button class="toggle-btn ${STATE.workerAction==='in'?'active-in':''}" onclick="setWorkerAction('in')"><span>🟢</span> Sign In</button>
+      <button class="toggle-btn ${STATE.workerAction==='out'?'active-out':''}" onclick="setWorkerAction('out')"><span>🔴</span> Sign Out</button>
+    </div>
+    <button class="btn-primary" onclick="workerToGPS()">Continue →</button>
+  ` : '';
+
+  body.innerHTML = `
+    <div class="step-label">Tap Your Name</div>
+    <input class="name-search" type="text" placeholder="🔍  Search name..." value="${workerSearchVal}" oninput="workerSearchChange(this.value)" />
+    <div class="worker-list">${listHTML}</div>
+    ${actionHTML}
+  `;
+}
+
+function workerSearchChange(v) { workerSearchVal = v; renderWorkerStep(); }
+function workerSelectName(name) { STATE.workerName = name; workerSearchVal = ''; renderWorkerStep(); }
+function setWorkerAction(a) { STATE.workerAction = a; renderWorkerStep(); }
+
+function workerToGPS() {
+  STATE.workerStep = 'gps';
+  STATE.gpsStatus = 'pending';
+  STATE.gpsDistance = null;
+  renderWorkerStep();
+  doGPSCheck();
+}
+
+function renderWorkerGPS(body) {
+  const gs = STATE.gpsStatus;
+  let inner = '';
+  if (gs === 'pending') inner = `<div class="spinner" style="margin:0 auto 16px"></div><div style="color:#94a3b8">Acquiring location…</div>`;
+  else if (gs === 'ok') inner = `<div class="gps-icon">✅</div><div class="gps-status-ok">You are on site</div><div class="gps-sub">${Math.round(STATE.gpsDistance)}m from site centre</div>`;
+  else if (gs === 'far') inner = `<div class="gps-icon">🚫</div><div class="gps-status-err">Too far from site</div><div class="gps-sub">${Math.round(STATE.gpsDistance)}m away — max ${STATE.selectedSite?.radius||800}m</div>`;
+  else if (gs === 'denied') inner = `<div class="gps-icon">📵</div><div class="gps-status-err">Location access required</div><div class="gps-sub">Enable location in your phone settings</div>`;
+
+  body.innerHTML = `
+    <div class="step-label">GPS Verification</div>
+    <div class="gps-box">${inner}</div>
+    ${gs==='ok' ? `<button class="btn-primary" onclick="workerSubmit()">Submit ${STATE.workerAction==='in'?'Sign In':'Sign Out'}</button>` : ''}
+    ${(gs==='far'||gs==='denied') ? `<button class="btn-secondary" onclick="workerToGPS()">Retry GPS</button>` : ''}
+    <button class="btn-ghost" onclick="STATE.workerStep='form';renderWorkerStep()">← Back</button>
+  `;
+}
+
+function doGPSCheck() {
+  if (!navigator.geolocation) { STATE.gpsStatus = 'denied'; renderWorkerStep(); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    if (!STATE.selectedSite) return;
+    const dist = haversine(pos.coords.latitude, pos.coords.longitude, STATE.selectedSite.lat, STATE.selectedSite.lng);
+    STATE.gpsDistance = dist;
+    STATE.gpsStatus = dist <= (STATE.selectedSite.radius||800) ? 'ok' : 'far';
+    renderWorkerStep();
+  }, () => { STATE.gpsStatus = 'denied'; renderWorkerStep(); }, { enableHighAccuracy: true, timeout: 10000 });
+}
+
+function workerSubmit() {
+  const record = { id:genId(), siteId:STATE.selectedSite.id, siteName:STATE.selectedSite.name, name:STATE.workerName, action:STATE.workerAction, timestamp:new Date().toISOString(), date:fmt.today(), distance:STATE.gpsDistance };
+  const dayKey = `klok:records:${STATE.selectedSite.id}:${fmt.today()}`;
+  const existing = DB.get(dayKey) || [];
+  existing.push(record);
+  DB.set(dayKey, existing);
+  const dates = DB.get(`klok:record-dates:${STATE.selectedSite.id}`) || [];
+  if (!dates.includes(fmt.today())) { dates.push(fmt.today()); DB.set(`klok:record-dates:${STATE.selectedSite.id}`, dates); }
+  const active = DB.get(`klok:active-workers:${STATE.selectedSite.id}`) || {};
+  if (STATE.workerAction === 'in') active[STATE.workerName] = record.timestamp; else delete active[STATE.workerName];
+  DB.set(`klok:active-workers:${STATE.selectedSite.id}`, active);
+  STATE._lastRecord = record;
+  STATE.workerStep = 'done';
+  renderWorkerStep();
+}
+
+function renderWorkerDone(body) {
+  const r = STATE._lastRecord;
+  body.innerHTML = `
+    <div style="text-align:center;padding:40px 0">
+      <div class="done-icon">${STATE.workerAction==='in'?'✅':'👋'}</div>
+      <div class="done-title">${STATE.workerAction==='in'?'Signed In!':'Signed Out!'}</div>
+      <div class="done-sub">Your attendance has been recorded</div>
+      <div class="summary-box">
+        <div class="summary-row"><span class="summary-label">Name</span><span class="summary-value">${r.name}</span></div>
+        <div class="summary-row"><span class="summary-label">Site</span><span class="summary-value">${r.siteName}</span></div>
+        <div class="summary-row"><span class="summary-label">Type</span><span class="summary-value" style="color:${STATE.workerAction==='in'?'#10b981':'#ef4444'}">${STATE.workerAction==='in'?'Sign In':'Sign Out'}</span></div>
+        <div class="summary-row"><span class="summary-label">Time</span><span class="summary-value">${fmt.time(r.timestamp)}</span></div>
+        <div class="summary-row"><span class="summary-label">Date</span><span class="summary-value">${fmt.date(r.timestamp)}</span></div>
+      </div>
+      <button class="btn-primary" onclick="resetWorker()">New Entry</button>
+    </div>
+  `;
+}
+
+function resetWorker() {
+  STATE.workerName = ''; STATE.workerAction = 'in'; STATE.gpsStatus = 'pending'; STATE.gpsDistance = null; workerSearchVal = '';
+  if (STATE.deepLinkSiteId) { STATE.workerStep = 'form'; }
+  else { STATE.workerStep = 'select-site'; STATE.selectedSite = null; hideWorkerSiteBadge(); }
+  renderWorkerStep();
+}
+
+// ═══════════════════════════════════════════
+// MANAGER DASHBOARD
+// ═══════════════════════════════════════════
+const NAV_ITEMS = [
+  { id:'dashboard', icon:'📊', label:'Dashboard' },
+  { id:'attendance', icon:'📋', label:'Attendance' },
+  { id:'workers', icon:'👷', label:'Workers' },
+  { id:'sites', icon:'🏗️', label:'Sites' },
+  { id:'reports', icon:'📈', label:'Reports' },
+  { id:'notifications', icon:'🔔', label:'Alerts', badge:true },
+  { id:'settings', icon:'⚙️', label:'Settings' }
+];
+
+function renderManager() {
+  renderSiteSelect();
+  renderNav();
+  renderMobileNav();
+  document.getElementById('sidebarUser').textContent = '👤 ' + (STATE.manager?.name || '');
+  renderTab(STATE.activeTab);
+}
+
+function renderSiteSelect() {
+  const sites = DB.get('klok:sites') || [];
+  const sel = document.getElementById('siteSelect');
+  sel.innerHTML = sites.map(s => `<option value="${s.id}" ${s.id===STATE.selectedSiteId?'selected':''}>${s.name}</option>`).join('');
+  if (!STATE.selectedSiteId && sites.length > 0) STATE.selectedSiteId = sites[0].id;
+}
+
+function onSiteChange(id) { STATE.selectedSiteId = id; renderTab(STATE.activeTab); }
+
+function getNotifications() {
+  if (!STATE.selectedSiteId) return [];
+  const active = DB.get(`klok:active-workers:${STATE.selectedSiteId}`) || {};
+  const now = Date.now();
+  return Object.entries(active)
+    .filter(([_, ts]) => (now - new Date(ts).getTime()) > 10*3600000)
+    .map(([name, ts]) => ({ name, signedInAt: ts, hoursAgo: ((now - new Date(ts).getTime())/3600000).toFixed(1) }));
+}
+
+function renderNav() {
+  const notifs = getNotifications();
+  document.getElementById('navList').innerHTML = NAV_ITEMS.map(n => `
+    <button class="nav-item ${STATE.activeTab===n.id?'active':''}" onclick="switchTab('${n.id}')">
+      <span>${n.icon}</span><span style="flex:1">${n.label}</span>
+      ${n.badge && notifs.length>0 ? `<span class="nav-badge">${notifs.length}</span>` : ''}
+    </button>
+  `).join('');
+}
+
+function renderMobileNav() {
+  const notifs = getNotifications();
+  const items = NAV_ITEMS.slice(0,5);
+  document.getElementById('mobileNav').innerHTML = items.map(n => `
+    <button class="mob-nav-item ${STATE.activeTab===n.id?'active':''}" onclick="switchTab('${n.id}')">
+      <span class="mob-nav-icon">${n.icon}</span><span>${n.label}</span>
+    </button>
+  `).join('');
+}
+
+function switchTab(id) { STATE.activeTab = id; renderNav(); renderMobileNav(); renderTab(id); }
+
+function renderTab(id) {
+  const pane = document.getElementById('mainPane');
+  pane.scrollTop = 0;
+  if (id === 'dashboard') renderDashboard(pane);
+  else if (id === 'attendance') renderAttendance(pane);
+  else if (id === 'workers') renderWorkers(pane);
+  else if (id === 'sites') renderSites(pane);
+  else if (id === 'reports') renderReports(pane);
+  else if (id === 'notifications') renderNotifications(pane);
+  else if (id === 'settings') renderSettings(pane);
+}
+
+// ── Dashboard ──
+function renderDashboard(pane) {
+  const site = getCurrentSite();
+  const records = getRecords();
+  const stats = computeDailyStats(records);
+  const notifs = getNotifications();
+  pane.innerHTML = `
+    <div class="top-bar">
+      <div><div class="pane-title">Dashboard</div><div class="pane-sub">${site?.name||'—'}</div></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input type="date" class="date-input" value="${STATE.dateFilter}" onchange="STATE.dateFilter=this.value;renderTab('dashboard')" />
+        <button class="refresh-btn" onclick="renderTab('dashboard')">↻</button>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon">👷</div><div class="stat-value" style="color:#10b981">${stats.onSite}</div><div class="stat-label">On Site Now</div></div>
+      <div class="stat-card"><div class="stat-icon">🟢</div><div class="stat-value" style="color:#3b82f6">${stats.signedIn}</div><div class="stat-label">Signed In Today</div></div>
+      <div class="stat-card"><div class="stat-icon">🔴</div><div class="stat-value" style="color:#8b5cf6">${stats.signedOut}</div><div class="stat-label">Signed Out</div></div>
+      <div class="stat-card clickable" onclick="switchTab('notifications')"><div class="stat-icon">🔔</div><div class="stat-value" style="color:#ef4444">${notifs.length}</div><div class="stat-label">Missing Sign-Out</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Recent Activity</div>
+      ${records.length===0 ? '<div class="no-items">No records for this date</div>' :
+        `<div style="max-height:360px;overflow-y:auto">${records.slice().reverse().slice(0,15).map(r=>`
+          <div class="activity-row">
+            <div class="activity-dot" style="background:${r.action==='in'?'#10b981':'#ef4444'}"></div>
+            <div style="flex:1"><span class="activity-name">${r.name}</span><span class="activity-action">${r.action==='in'?'signed in':'signed out'}</span></div>
+            <span class="activity-time">${fmt.time(r.timestamp)}</span>
+          </div>`).join('')}</div>`}
+    </div>
+  `;
+}
+
+// ── Attendance ──
+function renderAttendance(pane) {
+  const records = getRecords();
+  const stats = computeDailyStats(records);
+  pane.innerHTML = `
+    <div class="top-bar">
+      <div class="pane-title">Attendance</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input type="date" class="date-input" value="${STATE.dateFilter}" onchange="STATE.dateFilter=this.value;renderTab('attendance')" />
+        <button class="refresh-btn" onclick="renderTab('attendance')">↻</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Workers — ${fmt.date(STATE.dateFilter)}</div>
+      ${stats.workers.length===0 ? '<div class="no-items">No attendance records</div>' : `
+      <div style="overflow-x:auto"><table class="data-table">
+        <thead><tr><th class="th">Name</th><th class="th">Sign In</th><th class="th">Sign Out</th><th class="th">Hours</th><th class="th">Status</th></tr></thead>
+        <tbody>${stats.workers.map(w=>`<tr>
+          <td class="td" style="font-weight:600">${w.name}</td>
+          <td class="td" style="font-family:'JetBrains Mono',monospace;font-size:13px">${w.signIn?fmt.time(w.signIn):'—'}</td>
+          <td class="td" style="font-family:'JetBrains Mono',monospace;font-size:13px">${w.signOut?fmt.time(w.signOut):'—'}</td>
+          <td class="td" style="font-family:'JetBrains Mono',monospace;font-size:13px">${w.hours}</td>
+          <td class="td"><span class="status-badge ${w.status==='on-site'?'badge-green':w.status==='left'?'badge-purple':'badge-red'}">${w.status==='on-site'?'On Site':w.status==='left'?'Left':'Missing'}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`}
+    </div>
+  `;
+}
+
+// ── Workers ──
+let workerFilter = '', showAddWorker = false, editWorkerId = null, workerForm = { name:'', trade:'', siteIds:[] }, workerMsg = '';
+function renderWorkers(pane) {
+  const workers = DB.get('klok:workers') || [];
+  const sites = DB.get('klok:sites') || [];
+  const filtered = workerFilter ? workers.filter(w=>w.name.toLowerCase().includes(workerFilter.toLowerCase())||(w.trade||'').toLowerCase().includes(workerFilter.toLowerCase())) : workers;
+  pane.innerHTML = `
+    <div class="top-bar">
+      <div><div class="pane-title">Workers</div><div class="pane-sub">${workers.filter(w=>w.active).length} active · ${workers.length} total</div></div>
+      <button class="btn-sm" onclick="toggleAddWorker()">+ Add Worker</button>
+    </div>
+    ${showAddWorker ? `<div class="card" style="border-left:3px solid #f59e0b;margin-bottom:20px">
+      <div class="card-title">${editWorkerId?'Edit Worker':'New Worker'}</div>
+      <div class="form-grid">
+        <input class="form-input full-col" placeholder="Full name *" value="${workerForm.name}" oninput="workerForm.name=this.value" />
+        <input class="form-input full-col" placeholder="Trade / Role" value="${workerForm.trade}" oninput="workerForm.trade=this.value" />
+      </div>
+      <div style="margin-top:12px"><div style="font-size:12px;color:#64748b;margin-bottom:8px">Assign to sites (empty = all):</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">${sites.map(s=>`<button onclick="toggleWorkerSite('${s.id}')" style="padding:6px 12px;border-radius:8px;border:1px solid ${workerForm.siteIds.includes(s.id)?'#f59e0b':'#1e293b'};background:${workerForm.siteIds.includes(s.id)?'rgba(245,158,11,0.12)':'#111827'};color:${workerForm.siteIds.includes(s.id)?'#f59e0b':'#94a3b8'};font-size:12px;cursor:pointer">${workerForm.siteIds.includes(s.id)?'✓ ':''}${s.name}</button>`).join('')}</div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn-sm" onclick="saveWorker()">${editWorkerId?'Save':'Add Worker'}</button>
+        <button class="btn-ghost-sm" onclick="cancelAddWorker()">Cancel</button>
+      </div>
+    </div>` : ''}
+    ${workerMsg ? `<div class="${workerMsg.includes('!')?'msg-ok':'msg-err'}">${workerMsg}</div>` : ''}
+    <div class="card">
+      <input class="form-input" style="margin-bottom:14px" placeholder="🔍  Filter workers..." value="${workerFilter}" oninput="workerFilter=this.value;renderTab('workers')" />
+      ${filtered.length===0 ? '<div class="no-items">No workers yet.</div>' : `
+      <div style="overflow-x:auto"><table class="data-table">
+        <thead><tr><th class="th">Name</th><th class="th">Trade</th><th class="th">Sites</th><th class="th">Status</th><th class="th" style="text-align:right">Actions</th></tr></thead>
+        <tbody>${filtered.map(w=>{
+          const initials = w.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+          const siteNames = w.siteIds?.length>0 ? sites.filter(s=>w.siteIds.includes(s.id)).map(s=>s.name).join(', ') : 'All';
+          return `<tr>
+            <td class="td"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:50%;background:${w.active?'#1e293b':'#0f172a'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${w.active?'#f59e0b':'#475569'};flex-shrink:0">${initials}</div><span style="font-weight:600;color:${w.active?'#f8fafc':'#475569'}">${w.name}</span></div></td>
+            <td class="td" style="color:#94a3b8">${w.trade||'—'}</td>
+            <td class="td" style="color:#64748b;font-size:12px">${siteNames}</td>
+            <td class="td"><span class="status-badge ${w.active?'badge-green':'badge-slate'}">${w.active?'Active':'Inactive'}</span></td>
+            <td class="td" style="text-align:right"><div style="display:flex;gap:6px;justify-content:flex-end">
+              <button class="btn-ghost-sm" style="padding:4px 10px" onclick="startEditWorker('${w.id}')">✏️</button>
+              <button class="btn-ghost-sm" style="padding:4px 10px" onclick="toggleWorkerActive('${w.id}')">${w.active?'⏸':'▶'}</button>
+              <button class="btn-danger-sm" style="padding:4px 10px" onclick="deleteWorker('${w.id}')">🗑</button>
+            </div></td>
+          </tr>`;}).join('')}</tbody>
+      </table></div>`}
+    </div>
+  `;
+}
+function toggleAddWorker() { showAddWorker=!showAddWorker; editWorkerId=null; workerForm={name:'',trade:'',siteIds:[]}; renderTab('workers'); }
+function cancelAddWorker() { showAddWorker=false; editWorkerId=null; renderTab('workers'); }
+function toggleWorkerSite(id) { workerForm.siteIds=workerForm.siteIds.includes(id)?workerForm.siteIds.filter(s=>s!==id):[...workerForm.siteIds,id]; renderTab('workers'); }
+function saveWorker() {
+  if (!workerForm.name.trim()) { workerMsg='Name is required'; renderTab('workers'); return; }
+  const all = DB.get('klok:workers') || [];
+  if (editWorkerId) { const idx=all.findIndex(w=>w.id===editWorkerId); if (idx>=0) { all[idx].name=workerForm.name.trim(); all[idx].trade=workerForm.trade.trim(); all[idx].siteIds=workerForm.siteIds; } workerMsg='Worker updated!'; }
+  else {
+    if (all.find(w=>w.name.toLowerCase()===workerForm.name.trim().toLowerCase())) { workerMsg='Worker already exists'; renderTab('workers'); return; }
+    const sites = DB.get('klok:sites') || [];
+    all.push({ id:genId(), name:workerForm.name.trim(), trade:workerForm.trade.trim(), siteIds:workerForm.siteIds.length>0?workerForm.siteIds:sites.map(s=>s.id), active:true });
+    workerMsg='Worker added!';
+  }
+  DB.set('klok:workers', all); showAddWorker=false; editWorkerId=null; workerForm={name:'',trade:'',siteIds:[]};
+  setTimeout(()=>{workerMsg='';renderTab('workers');},2000); renderTab('workers');
+}
+function startEditWorker(id) { const w=(DB.get('klok:workers')||[]).find(x=>x.id===id); if(!w) return; workerForm={name:w.name,trade:w.trade||'',siteIds:w.siteIds||[]}; editWorkerId=id; showAddWorker=true; renderTab('workers'); }
+function toggleWorkerActive(id) { const all=DB.get('klok:workers')||[]; const w=all.find(x=>x.id===id); if(w) w.active=!w.active; DB.set('klok:workers',all); renderTab('workers'); }
+function deleteWorker(id) { DB.set('klok:workers',(DB.get('klok:workers')||[]).filter(w=>w.id!==id)); renderTab('workers'); }
+
+// ── Sites ──
+let showAddSite=false, showQRSiteId=null, siteForm={name:'',address:'',lat:'',lng:'',radius:'800'}, siteMsg='';
+function renderSites(pane) {
+  const sites = DB.get('klok:sites') || [];
+  pane.innerHTML = `
+    <div class="top-bar">
+      <div class="pane-title">Sites</div>
+      <button class="btn-sm" onclick="toggleAddSite()">+ Add Site</button>
+    </div>
+    ${showAddSite ? `<div class="card" style="margin-bottom:20px"><div class="card-title">New Site</div>
+      <div class="form-grid">
+        <input class="form-input full-col" placeholder="Site name *" value="${siteForm.name}" oninput="siteForm.name=this.value" />
+        <input class="form-input full-col" placeholder="Address" value="${siteForm.address}" oninput="siteForm.address=this.value" />
+        <input class="form-input" placeholder="Latitude" value="${siteForm.lat}" oninput="siteForm.lat=this.value" />
+        <input class="form-input" placeholder="Longitude" value="${siteForm.lng}" oninput="siteForm.lng=this.value" />
+        <input class="form-input" placeholder="Geofence radius (m)" value="${siteForm.radius}" oninput="siteForm.radius=this.value" />
+      </div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn-sm" onclick="saveSite()">Create Site</button>
+        <button class="btn-ghost-sm" onclick="cancelAddSite()">Cancel</button>
+      </div>
+    </div>` : ''}
+    ${siteMsg ? `<div class="msg-ok">${siteMsg}</div>` : ''}
+    <div style="display:grid;gap:14px">${sites.map(s=>`
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-size:16px;font-weight:700;color:#f8fafc">${s.name}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:4px">${s.address}</div>
+            <div style="font-size:11px;color:#475569;margin-top:4px;font-family:'JetBrains Mono',monospace">${s.lat}, ${s.lng} · ${s.radius}m</div>
+          </div>
+          <span class="status-badge ${s.status==='active'?'badge-green':'badge-amber'}">${s.status}</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+          <button class="btn-ghost-sm" onclick="toggleSiteQR('${s.id}')">📲 QR Code</button>
+          <button class="btn-ghost-sm" onclick="toggleSiteStatus('${s.id}')">${s.status==='active'?'⏸ Pause':'▶ Activate'}</button>
+          <button class="btn-danger-sm" onclick="deleteSite('${s.id}')">🗑 Delete</button>
+        </div>
+        ${showQRSiteId===s.id ? renderQRBlock(s) : ''}
+      </div>`).join('')}
+    </div>
+  `;
+}
+function renderQRBlock(s) {
+  const base = window.location.origin + window.location.pathname;
+  const url = `${base}${base.includes('?')?'&':'?'}site=${s.id}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=0a0f1a&margin=8`;
+  return `<div class="qr-wrap">
+    <div style="font-size:13px;color:#f59e0b;font-weight:700;margin-bottom:4px">📲 Scan to Sign In / Out</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:14px">Workers pick their name — no login needed</div>
+    <div style="background:#fff;border-radius:12px;padding:12px;display:inline-block"><img src="${qrUrl}" width="180" height="180" style="display:block;border-radius:4px" /></div>
+    <div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:8px">${s.name}</div>
+    <div style="margin-top:10px"><button class="btn-ghost-sm" onclick="copyToClipboard('${url}',this)">📋 Copy Link</button></div>
+    <div style="font-size:10px;color:#475569;margin-top:6px;word-break:break-all;max-width:260px;margin-left:auto;margin-right:auto">${url}</div>
+  </div>`;
+}
+function copyToClipboard(text, btn) { navigator.clipboard?.writeText(text).then(()=>{ btn.textContent='✓ Copied!'; btn.style.color='#10b981'; setTimeout(()=>{ btn.textContent='📋 Copy Link'; btn.style.color=''; },2000); }); }
+function toggleSiteQR(id) { showQRSiteId = showQRSiteId===id ? null : id; renderTab('sites'); }
+function toggleAddSite() { showAddSite=!showAddSite; renderTab('sites'); }
+function cancelAddSite() { showAddSite=false; renderTab('sites'); }
+function saveSite() {
+  if (!siteForm.name.trim()) return;
+  const all = DB.get('klok:sites') || [];
+  all.push({ id:genId(), name:siteForm.name.trim(), address:siteForm.address.trim(), lat:parseFloat(siteForm.lat)||51.485, lng:parseFloat(siteForm.lng)||-0.502, radius:parseInt(siteForm.radius)||800, status:'active', created:new Date().toISOString() });
+  DB.set('klok:sites', all); siteForm={name:'',address:'',lat:'',lng:'',radius:'800'}; showAddSite=false; siteMsg='Site created!';
+  renderSiteSelect(); setTimeout(()=>{siteMsg='';renderTab('sites');},1500); renderTab('sites');
+}
+function toggleSiteStatus(id) { const all=DB.get('klok:sites')||[]; const s=all.find(x=>x.id===id); if(s) s.status=s.status==='active'?'paused':'active'; DB.set('klok:sites',all); renderTab('sites'); }
+function deleteSite(id) { DB.set('klok:sites',(DB.get('klok:sites')||[]).filter(x=>x.id!==id)); renderSiteSelect(); renderTab('sites'); }
+
+// ── Reports ──
+function renderReports(pane) {
+  const site = getCurrentSite();
+  const wsDate = fmt.weekStart();
+  const weeklyData = [];
+  for (let i=0;i<7;i++) { const d=new Date(wsDate); d.setDate(d.getDate()+i); const ds=fmt.iso(d); weeklyData.push({ date:ds, dayName:d.toLocaleDateString('en-GB',{weekday:'short'}), records:(DB.get(`klok:records:${STATE.selectedSiteId}:${ds}`)||[]) }); }
+  const wt = {};
+  weeklyData.forEach(day => { computeDailyStats(day.records).workers.forEach(w => { if(!wt[w.name]) wt[w.name]={name:w.name,totalMs:0,days:0}; if(w.totalMs>0){wt[w.name].totalMs+=w.totalMs;wt[w.name].days+=1;} }); });
+  const totals = Object.values(wt).sort((a,b)=>b.totalMs-a.totalMs);
+  const mx = Math.max(...weeklyData.map(d=>{const s=new Set();d.records.forEach(r=>s.add(r.name));return s.size;}),1);
+  pane.innerHTML = `
+    <div class="top-bar"><div><div class="pane-title">Weekly Report</div><div class="pane-sub">${site?.name||'—'}</div></div></div>
+    <div class="card"><div class="card-title">Workers per Day</div>
+      <div class="bar-chart">${weeklyData.map(d=>{ const c=new Set(d.records.map(r=>r.name)).size; const h=Math.max((c/mx)*100,4); return `<div class="bar-col"><span class="bar-count">${c}</span><div class="bar" style="height:${h}%;background:${d.date===fmt.today()?'#f59e0b':'#1e40af'}"></div><span class="bar-day">${d.dayName}</span></div>`; }).join('')}</div>
+    </div>
+    <div class="card"><div class="card-title">Timesheet Summary</div>
+      ${totals.length===0 ? '<div class="no-items">No data this week</div>' : `
+      <table class="data-table"><thead><tr><th class="th">Worker</th><th class="th">Days</th><th class="th">Total</th><th class="th">Avg/Day</th></tr></thead>
+      <tbody>${totals.map(w=>`<tr><td class="td" style="font-weight:600">${w.name}</td><td class="td" style="text-align:center">${w.days}</td><td class="td" style="font-family:'JetBrains Mono',monospace">${fmt.hours(w.totalMs)}</td><td class="td" style="font-family:'JetBrains Mono',monospace">${w.days>0?fmt.hours(w.totalMs/w.days):'—'}</td></tr>`).join('')}</tbody>
+      </table>`}
+    </div>
+  `;
+}
+
+// ── Notifications ──
+function renderNotifications(pane) {
+  const site = getCurrentSite();
+  const notifs = getNotifications();
+  pane.innerHTML = `
+    <div class="top-bar"><div><div class="pane-title">Alerts</div><div class="pane-sub">${site?.name||'—'}</div></div></div>
+    ${notifs.length===0 ? `<div class="card" style="text-align:center;padding:48px"><div style="font-size:48px;margin-bottom:12px">✅</div><div style="color:#10b981;font-weight:600;font-size:16px">All clear!</div><div style="color:#64748b;margin-top:8px;font-size:13px">No missing sign-outs</div></div>` :
+      `<div style="display:grid;gap:10px">${notifs.map(n=>`<div class="card alert-card"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:15px">🔔 ${n.name}</div><div style="color:#64748b;font-size:12px;margin-top:4px">Signed in ${n.hoursAgo}h ago — no sign-out</div></div><div style="font-size:11px;color:#ef4444;font-weight:600">MISSING</div></div><div style="font-size:11px;color:#475569;margin-top:8px;font-family:'JetBrains Mono',monospace">Sign-in: ${fmt.time(n.signedInAt)} · ${fmt.date(n.signedInAt)}</div></div>`).join('')}</div>`}
+  `;
+}
+
+// ── Settings ──
+let newMgrForm={name:'',pin:''}, settingsMsg='';
+function renderSettings(pane) {
+  const managers = DB.get('klok:managers') || [];
+  pane.innerHTML = `
+    <div class="top-bar"><div class="pane-title">Settings</div></div>
+    <div class="card"><div class="card-title">Managers</div>
+      ${managers.map(m=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1e293b">
+        <div><span style="font-weight:600">${m.name}</span><span style="color:#475569;font-size:12px;margin-left:8px">${m.role}</span></div>
+        ${m.id!==STATE.manager?.id?`<button class="btn-danger-sm" style="font-size:11px;padding:4px 10px" onclick="removeManager('${m.id}')">Remove</button>`:'<span style="font-size:11px;color:#475569">You</span>'}
+      </div>`).join('')}
+      <div style="margin-top:20px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <input class="form-input" style="flex:1;min-width:120px" placeholder="Name" value="${newMgrForm.name}" oninput="newMgrForm.name=this.value" />
+        <input class="form-input" style="width:100px" type="password" maxlength="6" placeholder="PIN" value="${newMgrForm.pin}" oninput="newMgrForm.pin=this.value" />
+        <button class="btn-sm" onclick="addManager()">Add</button>
+      </div>
+      ${settingsMsg?`<div class="mt-10 ${settingsMsg.includes('!')?'msg-ok':'msg-err'}" style="margin-top:10px">${settingsMsg}</div>`:''}
+    </div>
+    <div class="card" style="margin-top:16px"><div class="card-title">About</div>
+      <div style="color:#64748b;font-size:13px;line-height:1.9"><strong style="color:#f8fafc">Klok v2.1</strong> — Workforce Attendance Platform<br/>Workers pick their name — no accounts needed.<br/>Data is stored locally on this device.</div>
+    </div>
+  `;
+}
+function addManager() {
+  if (!newMgrForm.name.trim() || newMgrForm.pin.length < 4) { settingsMsg='Name + 4-digit PIN required'; renderTab('settings'); return; }
+  const all = DB.get('klok:managers') || [];
+  all.push({ id:genId(), name:newMgrForm.name.trim(), pin:newMgrForm.pin, role:'manager' });
+  DB.set('klok:managers', all); newMgrForm={name:'',pin:''}; settingsMsg='Added!';
+  setTimeout(()=>{settingsMsg='';renderTab('settings');},2000); renderTab('settings');
+}
+function removeManager(id) {
+  if (id===STATE.manager?.id) { settingsMsg="Can't remove yourself"; renderTab('settings'); return; }
+  DB.set('klok:managers', (DB.get('klok:managers')||[]).filter(m=>m.id!==id)); renderTab('settings');
+}
+
+// ── Helpers ──
+function getCurrentSite() { const sites=DB.get('klok:sites')||[]; return sites.find(s=>s.id===STATE.selectedSiteId)||sites[0]||null; }
+function getRecords() { const site=getCurrentSite(); if (!site) return []; return DB.get(`klok:records:${site.id}:${STATE.dateFilter}`)||[]; }
+</script>
+</body>
+</html>
